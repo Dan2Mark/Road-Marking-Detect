@@ -14,23 +14,31 @@ namespace Road_Marking_Detect
 {
     public partial class Form1 : Form
     {
-        OpenImage openImage;
+        OpenImage openImage; 
         public Form1()
         {
             InitializeComponent();
-            openImage = new OpenImage();
-            pictureBox1.Image = openImage.GetImageForPictureBox(true, true) ;
+            LoadImage(@"C:\Users\danma\Downloads\Дорога_1.jpg");
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
-            openImage = new OpenImage();
-            pictureBox1.Image = openImage.GetImageForPictureBox(true, true);
+            var tempImg = pictureBox1.Image;
+            pictureBox1.Image = null;
+            openFileDialog1.ShowDialog();
+            if (openFileDialog1.FileName != "openFileDialog1" && openFileDialog1.FileName.Length > 0)
+                LoadImage(openFileDialog1.FileName);
+            else
+                pictureBox1.Image = tempImg;
         }
-
-        private void checkBox_CheckedChanged(object sender, EventArgs e)
+        private void LoadImage(string file_name)
         {
-            var checkbox = (CheckBox)sender;
+            openImage = new OpenImage(file_name);
+            pictureBox1.Image = openImage.GetImageForPictureBox(false, true);
+            procentOfWhiteLabel.Text = openImage.GetProcentOfWhiteText();
+        }
+        private void GetImage(object sender, EventArgs e)
+        {
             pictureBox1.Image = openImage.GetImageForPictureBox(checkBox1.Checked, checkBox2.Checked);
         }
     }

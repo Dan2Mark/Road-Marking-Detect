@@ -87,7 +87,8 @@ namespace Road_Marking_Detect.Model
         static Random random = new Random();
         public static Mat DrawLines(List<Line> lines, Mat mat)
         {
-            Mat new_mat = mat.Clone();
+            Mat new_mat = Simplification.GetBlackPicture(mat, 150);
+            
             foreach (var line in lines)
             {
 
@@ -108,11 +109,12 @@ namespace Road_Marking_Detect.Model
                             new_mat.At<Vec3b>(x, (int)Math.Round(y))[2] = color2;
                         }
                     }
+
                 }
             }
             return new_mat;
         }
-        public static List<Line> FindLines(Mat mat, int delta = 3, int min_length = 40, int max_interval = 1)
+        public static List<Line> FindLines(Mat mat, int delta = 8, int min_length = 80, int max_interval = 2)
         {
             List<int> startYList = new List<int>();
             List<int> endYList = new List<int>();
@@ -159,13 +161,13 @@ namespace Road_Marking_Detect.Model
                             int pixel_count = (int)Math.Round(Math.Abs(average_left_shift) + average_width + delta);
                             int black_pixel_count = 0;
                             bool flagStart = false;
-                            for (; y_i < pixel_count + delta + 2; y_i++, y++)
+                            for (; /*y_i < pixel_count + delta + 4*/; y_i++, y++)
                             {
                                 if (y >= mat.Cols)
                                     break;
                                 byte pixel = mat.At<Vec3b>(x, y)[0];
-                                if (33 + (cnt % 94) == 'E')
-                                    matrix[x, y] = pixel > 0 ? (char)(33 + (cnt % 94)) : '-';
+                                //if (33 + (cnt % 94) == 'E')
+                                //    matrix[x, y] = pixel > 0 ? (char)(33 + (cnt % 94)) : '-';
                                 if (pixel > 0)
                                 {
                                     if (!flagStart)
@@ -268,7 +270,7 @@ namespace Road_Marking_Detect.Model
                     lines.Add(prob_lines[i]);
             }
             drawMatrix(matrix);
-            return lines;
+            return prob_lines;
         }
 
         static void drawMatrix(char[,] matrix)

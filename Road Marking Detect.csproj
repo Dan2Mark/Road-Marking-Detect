@@ -76,6 +76,7 @@
     <Compile Include="Model\Line.cs" />
     <Compile Include="Model\Line2.cs" />
     <Compile Include="Model\LineBlock.cs" />
+    <Compile Include="Model\MarkingQualityDetection.cs" />
     <Compile Include="Model\Simplification.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

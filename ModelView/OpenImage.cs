@@ -11,28 +11,34 @@ namespace Road_Marking_Detect.ModelView
 {
     class OpenImage
     {
+        MarkingQualityDetection markingQualityDetection;
         Mat opened_Image = new Mat();
         Mat simple_Image = new Mat();
         List<Line> lines;
         public string consoleLog { get; private set; }
-        public OpenImage()
+        public OpenImage(string file)
         {
-            opened_Image = GetImage.OpenFromFile(@"C:\Users\danma\Downloads\Дорога_1.jpg");
+            opened_Image = GetImage.OpenFromFile(file);
             opened_Image = Simplification.Resize(opened_Image);
             simple_Image = Simplification.imageSimplification(opened_Image);
             lines = Line.FindLines(simple_Image);
+            markingQualityDetection = new MarkingQualityDetection(MatToBitmap(opened_Image), lines);
             Console.WriteLine("Success");
         }
-        public Bitmap GetImageForPictureBox(bool is_simple = false, bool show_lines = false)
+        public Bitmap GetImageForPictureBox(bool is_simple = false, bool show_lines = false, int procentsOfWhite = 100)
         {
             var image = is_simple ? simple_Image : opened_Image;
 
             if (show_lines)
             {
-                 image = Line.DrawLines(lines, image);
+                 image = markingQualityDetection.GetBadLines(image, procentsOfWhite);
             }
             
             return MatToBitmap(image);
+        }
+        public string GetProcentOfWhiteText()
+        {
+            return "Яскравість дорожньої розмітки " + markingQualityDetection.GetProcentOfWhite() +"%";
         }
 
         private static Bitmap MatToBitmap(Mat mat)
@@ -42,7 +48,6 @@ namespace Road_Marking_Detect.ModelView
                 return (Bitmap)Image.FromStream(ms);
             }
         }
-
     }
 
 }

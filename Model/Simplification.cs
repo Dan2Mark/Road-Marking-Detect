@@ -22,7 +22,7 @@ namespace Road_Marking_Detect.Model
 
         static Mat Blur(Mat mat)
         {
-            return mat.Blur(new OpenCvSharp.Size(7, 7));
+            return mat.Blur(new OpenCvSharp.Size(2, 2));
         }
         static double GetMiddleBrightness(Mat mat)
         {
@@ -246,76 +246,107 @@ namespace Road_Marking_Detect.Model
             return new_mat;
 
         }
-        
-        static public Mat PickOutLines (Mat mat, int delta = 10)
+
+        static public Mat PickOutLines(Mat mat, int delta = 2)
         {
             Mat new_mat = GetBlackPicture(mat);
-            for (int y = 0; y < mat.Rows; y++)
-            {
-                byte upperThreshold = 0;
-                byte lowerThreshold = 255;
-                int Brightness = 0;
-                int countBrightness = 0;
-                List<(int, int)> lines = new List<(int, int)>();
-                byte[] pixels = new byte[mat.Cols];
-                for (int x = 0; x < mat.Cols; x++)
+            for (int rowsCols = 0; rowsCols < 1; rowsCols++)
+                for (int y = 0; (y < mat.Rows && rowsCols == 0) || (y < mat.Cols && rowsCols == 1); y++)
                 {
-                    pixels[x] = mat.At<Vec3b>(y, x)[0];
-                    Brightness += pixels[x];
-                    if (pixels[x] > 0)
-                        countBrightness++;
-                    if (pixels[x] > upperThreshold)
-                        upperThreshold = pixels[x];
-                    if (pixels[x] < lowerThreshold)
-                        lowerThreshold = pixels[x];
-                }
-                double averageBrightness = countBrightness > 0 ? Brightness / countBrightness : 0;
-                bool brightnessFlag = false, riseFlag = false;
-                int lineWidth = 0;
-                int blackPixelCount = 0;
-                int lastAverageBrightness = 0;
-                if (averageBrightness > 1)
-                    for (int x = 1; x < mat.Cols; x++)
+                    byte upperThreshold = 0;
+                    byte lowerThreshold = 255;
+                    int Brightness = 0;
+                    int countBrightness = 0;
+                    List<(int, int)> lines = new List<(int, int)>();
+                    byte[] pixels = new byte[rowsCols == 0 ? mat.Cols : mat.Rows];
+                    int lightPixelCount = 0;
+                    for (int x = 0; (x < mat.Cols && rowsCols == 0) || (x < mat.Rows && rowsCols == 1); x++)
                     {
-                        lastAverageBrightness = (pixels[x] + lastAverageBrightness * 4) / 5;
-                        if ( (Math.Abs(pixels[x] - lastAverageBrightness) < 5 || pixels[x] > lastAverageBrightness) && pixels[x] >= (upperThreshold * 2 + averageBrightness) / 3)
+                        pixels[x] = rowsCols == 0 ? mat.At<Vec3b>(y, x)[0] : mat.At<Vec3b>(x, y)[0];
+                        Brightness += pixels[x];
+                        countBrightness++;
+                        if (pixels[x] > upperThreshold)
+                            upperThreshold = pixels[x];
+                        if (pixels[x] < lowerThreshold)
+                            lowerThreshold = pixels[x];
+                        if (pixels[x] >= upperThreshold)
+                            lightPixelCount++;
+                    }
+
+                    double changeFactor = 0;
+                    double averageBrightness = countBrightness > 0 ? Brightness / countBrightness : 0;
+                    bool brightnessFlag = false, riseFlag = false;
+                    int lineWidth = 0;
+                    int blackPixelCount = 0;
+                    int lastAverageBrightness = 0;
+                    bool startFlag = false;
+                    int xStart = 0;
+                    if (averageBrightness > 1)
+                        for (int x = 1, cnt = 0; x < pixels.Length; x++, cnt++)
                         {
-                            lineWidth++;
-                        }
-                        
-                        else if (blackPixelCount < 3 && lineWidth > 0)
-                        {
-                            blackPixelCount++;
-                        }
-                        else if (blackPixelCount >= 3)
-                        {
-                            lines.Add((x - lineWidth - 3, lineWidth));
-                            blackPixelCount = 0;
-                            lineWidth = 0;
-                        }
-                        else
-                            new_mat.At<Vec3b>(y, x)[0] = 0;
-                        if (lines.Count > 0)
-                        {
-                            int maxlength = (int)((lines.Max(t => t.Item2) + lines.Average(t => t.Item2)) / 2);
-                            if (maxlength < 5)
-                                maxlength = 5;
-                            if (maxlength > 20)
-                                maxlength = 20; 
-                            foreach (var line in lines)
+                            var newChangeFactor = pixels[x] - pixels[x - 1];
+                            changeFactor = (changeFactor * cnt + newChangeFactor) / (cnt + 1);
+
+                            if (!startFlag && newChangeFactor - changeFactor > 30 && pixels[x] >= averageBrightness)
                             {
-                                if (line.Item2 > maxlength)
-                                    continue;
-                                for (int x1 = line.Item1; x1 < line.Item1 + line.Item2; x1++)
+                                startFlag = true;
+                                xStart = x;
+                                cnt = 2;
+                                lineWidth = 0;
+                            }
+                            else if (startFlag && newChangeFactor - changeFactor < -30)
+                            {
+                                startFlag = false;
+                            }
+                            lastAverageBrightness = (pixels[x] + lastAverageBrightness * 3) / 4;
+                            //  if ( (Math.Abs(pixels[x] - lastAverageBrightness) < 5 || pixels[x] > lastAverageBrightness)  && pixels[x] >= (upperThreshold * delta + averageBrightness) / (delta +1))
+                            if (startFlag)
+                            {
+                                lineWidth++;
+                            }
+
+                            else if (blackPixelCount < 3 && lineWidth > 0)
+                            {
+                                blackPixelCount++;
+                            }
+                            else if (blackPixelCount >= 3)
+                            {
+                                lines.Add((x - lineWidth - 3, lineWidth));
+                                blackPixelCount = 0;
+                                lineWidth = 0;
+                            }
+                            //else
+                            //new_mat.At<Vec3b>(y, x)[0] = 0;
+                            if (lines.Count > 0)
+                            {
+                                int maxlength = (int)((lines.Max(t => t.Item2) + lines.Average(t => t.Item2)) / 2);
+                                if (maxlength < 5)
+                                    maxlength = 5;
+                                if (maxlength > 20)
+                                    maxlength = 20;
+                                foreach (var line in lines)
                                 {
-                                    for (int c = 0; c < 3; c++)
-                                        new_mat.At<Vec3b>(y, x1)[c] = 255;
+                                    if (line.Item2 > maxlength)
+                                        continue;
+                                    bool whiteFlag = false;
+                                    for (int x1 = line.Item1; x1 < line.Item1 + line.Item2; x1++)
+                                    {
+                                        for (int c = 0; c < 3; c++)
+                                            if (rowsCols == 0)
+                                                new_mat.At<Vec3b>(y, x1)[c] = 255;
+                                            else if (whiteFlag)
+                                            {
+                                                new_mat.At<Vec3b>(x1, y)[c] = 255;
+                                            }
+                                            else if (new_mat.At<Vec3b>(x, y)[0] > 0)
+                                                whiteFlag = true;
+
+                                    }
                                 }
                             }
                         }
-                    }
-            }
-            return new_mat; 
+                }
+            return new_mat;
         }
         static public Mat imageSimplification(Mat new_mat)
         {
@@ -324,15 +355,15 @@ namespace Road_Marking_Detect.Model
             //new_mat = ToGray(new_mat);
             int skyHeight;
             new_mat = DeleteSky(new_mat, out skyHeight, 100,4);
-            new_mat = new_mat.BilateralFilter(100, 75, 75);
-            //new_mat = ContrastBrightness(new_mat, GetBestAlpha(new_mat,skyHeight), 0, skyHeight);
-            //new_mat = ContrastBrightness(new_mat, 1, GetBestBeta(new_mat,skyHeight), skyHeight);
-            ///new_mat = new_mat.CvtColor(ColorConversionCodes.GRAY2RGB);
-            new_mat = PickOutLines(new_mat);
+            new_mat = Blur(new_mat);
+            new_mat = new_mat.BilateralFilter(75, 75, 75);
+            new_mat = ContrastBrightness(new_mat, GetBestAlpha(new_mat,skyHeight), GetBestBeta(new_mat, skyHeight), skyHeight);
+            //new_mat = new_mat.CvtColor(ColorConversionCodes.GRAY2RGB);
+            //new_mat = PickOutLines(new_mat);
             //new_mat = OnlyWhite(new_mat, 50);
             //new_mat = new_mat.Canny(40, 160);
             //new_mat = DellNoise(new_mat, 15, 2, 16);
-            //new_mat = ToBinary(new_mat);
+            new_mat = ToBinary(new_mat);
             return new_mat;
         }
 
