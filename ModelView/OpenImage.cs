@@ -11,7 +11,7 @@ namespace Road_Marking_Detect.ModelView
 {
     class OpenImage
     {
-        MarkingQualityDetection markingQualityDetection;
+        public MarkingQualityDetection markingQualityDetection;
         Mat opened_Image = new Mat();
         Mat simple_Image = new Mat();
         List<Line> lines;
@@ -23,18 +23,15 @@ namespace Road_Marking_Detect.ModelView
             simple_Image = Simplification.imageSimplification(opened_Image);
             lines = Line.FindLines(simple_Image);
             markingQualityDetection = new MarkingQualityDetection(MatToBitmap(opened_Image), lines);
-            Console.WriteLine("Success");
         }
-        public Bitmap GetImageForPictureBox(bool is_simple = false, bool show_lines = false, int procentsOfWhite = 100)
+        public Bitmap GetImageForPictureBox(bool is_simple = false, bool show_lines = false)
         {
-            var image = is_simple ? simple_Image : opened_Image;
-
+            var image = MatToBitmap(is_simple ? simple_Image : opened_Image);
             if (show_lines)
             {
-                 image = markingQualityDetection.GetBadLines(image, procentsOfWhite);
+                 image = markingQualityDetection.GetBadLines(1,image);
             }
-            
-            return MatToBitmap(image);
+            return image;
         }
         public string GetProcentOfWhiteText()
         {

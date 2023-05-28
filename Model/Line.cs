@@ -36,7 +36,7 @@ namespace Road_Marking_Detect.Model
         }
         public bool IsThisLine(Line line, int min_length = 2)
         {
-            if (line.Name == "5" && Name == "6")
+            if (line.Name == "0" && Name == "%")
                 Console.WriteLine();
             var lastBlock = lineBlocks.Last();
             if (Math.Abs(lastBlock.leftShift - line.lineBlocks[0].leftShift) < 3 && line.length >= min_length && length >= min_length)
@@ -44,16 +44,18 @@ namespace Road_Marking_Detect.Model
                 int prob_y = Y0 - (int)Math.Round(leftShift * (X0 - line.X0));
                 if (Math.Abs(prob_y - line.Y0) < Math.Abs(line.X0 - X0) * 1)
                 {
-                    int interval = line.X0 - (X0 + length);
+                    int interval =  - line.X0 + (X0 + length);
                     Name += line.Name;
                     if (interval < 0)
                     {
                         interval = 0;
                     }
-                    double newDottsRelation = interval / (double)line.length;
-                    if (newDottsRelation >= 3.5 && newDottsRelation <= 0.25 || (DottsRelation > 0 && Math.Abs(DottsRelation - newDottsRelation) > 0.2))
-                        return false;
-                    DottsRelation = (DottsRelation + newDottsRelation) / 2;
+                    if (interval > 3)
+                       return false;
+                    //double newDottsRelation = interval / (double)line.length;
+                    //if (newDottsRelation >= 3.5 && newDottsRelation <= 0.25 || (DottsRelation > 0 && Math.Abs(DottsRelation - newDottsRelation) > 0.2))
+                    //    return false;
+                    //DottsRelation = (DottsRelation + newDottsRelation) / 2;
                     List<LineBlock> newLineBlocks = line.lineBlocks;
                     for (int i = 0; i < lineBlocks.Count; i++)
                     {
@@ -114,7 +116,7 @@ namespace Road_Marking_Detect.Model
             }
             return new_mat;
         }
-        public static List<Line> FindLines(Mat mat, int delta = 8, int min_length = 80, int max_interval = 2)
+        public static List<Line> FindLines(Mat mat, int delta = 5, int min_length = 60, int max_interval = 2)
         {
             List<int> startYList = new List<int>();
             List<int> endYList = new List<int>();
@@ -134,7 +136,7 @@ namespace Road_Marking_Detect.Model
                     int white_lines_count = 0;
                     int black_lines_count = 0;
                     double average_width = mat.Cols - j;
-                    double shift = -5;
+                    double shift = -3;
                     double average_left_shift = 0; //коефіцієнт сдвигу (наклону) лінії 
                     double average_right_shift = 0;
                     double average_y_start = 0;
@@ -154,20 +156,21 @@ namespace Road_Marking_Detect.Model
                         {
                             int y_i = 0;
                             int x = j + x_j;
-                            double sum = (x_j < 1 ? shift : average_left_shift) * (x_j < 1 ? 0 : (x_j - 1)) * (average_left_shift < 0 ? 1 : 1);
+                            double sum = (x_j < 1 ? shift : average_left_shift) * (x_j < 1 ? 0 : (x_j - 1)) * (average_left_shift < 0 ? 1.3 : 1);
                             int y_prob = (int)(i + y_i + sum - delta);
                             int y = y_prob >= 0 ? y_prob : 0;
                             bool flag_shift = false;
                             int pixel_count = (int)Math.Round(Math.Abs(average_left_shift) + average_width + delta);
-                            int black_pixel_count = 0;
+                            int black_pixel_count = 0; 
+                            int black_pixel__befor_count = 0;
                             bool flagStart = false;
-                            for (; /*y_i < pixel_count + delta + 4*/; y_i++, y++)
+                            for (;/*y_i < pixel_count + delta + 4*/; y_i++, y++)
                             {
                                 if (y >= mat.Cols)
                                     break;
                                 byte pixel = mat.At<Vec3b>(x, y)[0];
-                                //if (33 + (cnt % 94) == 'E')
-                                //    matrix[x, y] = pixel > 0 ? (char)(33 + (cnt % 94)) : '-';
+                                if (33 + (cnt % 94) == '8')
+                                    matrix[x, y] = pixel > 0 ? (char)(33 + (cnt % 94)) : '-';
                                 if (pixel > 0)
                                 {
                                     if (!flagStart)
@@ -185,11 +188,11 @@ namespace Road_Marking_Detect.Model
                                     {
                                         black_pixel_count++;
 
-                                        if (black_pixel_count > 2 && y > y_start + (y_end - y_start) / 2)
+                                        if (black_pixel_count > 1 && y > y_start + (y_end - y_start) / 2)
                                         {
                                             int prob_y_end_previos = y_end;
                                             y_end = y - black_pixel_count + 1;
-                                            int possible_space =  (int)Math.Abs(average_left_shift) + 1;
+                                            int possible_space = (int)Math.Abs(average_left_shift) + 1;
                                             //Перевірка на дотикання ліній
                                             if (x_j == 0 || (y_start >= y_start_previos - possible_space && y_start <= y_end_previos + possible_space) || (y_end >= y_start_previos - possible_space && y_end <= y_end_previos + possible_space) || (y_start <= y_start_previos + possible_space && y_end >= y_end_previos - possible_space))
                                             {
@@ -204,6 +207,18 @@ namespace Road_Marking_Detect.Model
                                     else
                                         black_pixel_count = 0;
                                 }
+                                else
+                                {
+
+                                    if (pixel == 0)
+                                        black_pixel__befor_count++;
+                                    if (black_pixel__befor_count > pixel_count + delta + 4)
+                                        break;
+                                }
+                                //if (y_i == pixel_count + delta + 3)
+                                //{
+                                //    y_end = y - black_pixel_count + 1;
+                                //}
                             }
                             if (flag_shift)
                             {
@@ -266,11 +281,13 @@ namespace Road_Marking_Detect.Model
                         i--;
                     }
                 }
-                if (prob_lines[i].length >= min_length)
+                double max_width = (10 * (prob_lines[i].leftShift + prob_lines[i].rightShift) / 2);
+                max_width = max_width < 20 ? 20 : max_width;
+                if (Math.Abs(prob_lines[i].rightShift / prob_lines[i].leftShift - 1) < 0.5 && (prob_lines[i].width < max_width || prob_lines[i].width > 50) && prob_lines[i].leftShift < prob_lines[i].rightShift + 0.4)
                     lines.Add(prob_lines[i]);
             }
-            drawMatrix(matrix);
-            return prob_lines;
+            //drawMatrix(matrix);
+            return lines;
         }
 
         static void drawMatrix(char[,] matrix)

@@ -15,7 +15,6 @@ namespace Road_Marking_Detect.Model
         public double rightShift;
         public double width;
         public int length;
-        public int gapLength = 0;
         public LineBlock(int X0, int Y0, double leftShift, double rightShift, double width, int length, char Name)
         {
             this.X0 = X0;
@@ -47,7 +46,7 @@ namespace Road_Marking_Detect.Model
                 comparableLeftShift = 0,
                 comparableRightShift = 0,
                 averageWidth = 0;
-                if (Name == 'Q')
+                if (Name == '0')
                     Console.Write("");
             for (int blockNum = 0; x_j < start.Count && x_j < end.Count; blockNum++)
             {

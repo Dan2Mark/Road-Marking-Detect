@@ -161,10 +161,10 @@ namespace Road_Marking_Detect.Model
                         for (int c = 0; c < mat.Channels(); c++)
                             gray_sum += mat.At<Vec3b>(y, x)[c];
                         white_count += gray_sum / mat.Channels() / 200;
-                        y_last = y;
+                        y_last = y + chank_h * 3;
                     }
             }
-            for (int y = 0; y < y_last; y++)
+            for (int y = 0; y < y_last && y < mat.Rows; y++)
             {
                 for (int x = 0; x < mat.Cols; x++)
                     for (int c = 0; c < mat.Channels(); c++)
@@ -192,7 +192,7 @@ namespace Road_Marking_Detect.Model
             return new_mat;
 
         }
-        static Mat DellNoise(Mat mat, double border_min = 3, int countInLineMax = 2, int chank_w = 20)
+        static Mat DellNoise(Mat mat, double border_min = 3, int countInLineMax = 3, int chank_w = 40)
         {
             int chank_h = chank_w;
             var new_mat = mat.Clone();
@@ -247,123 +247,134 @@ namespace Road_Marking_Detect.Model
 
         }
 
+
         static public Mat PickOutLines(Mat mat, int delta = 2)
         {
             Mat new_mat = GetBlackPicture(mat);
-            for (int rowsCols = 0; rowsCols < 1; rowsCols++)
-                for (int y = 0; (y < mat.Rows && rowsCols == 0) || (y < mat.Cols && rowsCols == 1); y++)
+            for (int y = 0; y < mat.Rows; y++)
+            {
+                //    byte upperThreshold = 0;
+                //    byte lowerThreshold = 255;
+                //    int Brightness = 0;
+                //    int countBrightness = 0;
+                //    List<(int, int)> lines = new List<(int, int)>();
+                //    byte[] pixels = new byte[mat.Cols];
+                //    int lightPixelCount = 0;
+
+                double averageChangeBright = 0;
+                byte pixel = mat.At<Vec3b>(y, 0)[0], lastPixel;
+                bool whiteFlag = false;
+
+                for (int x = 0; x < mat.Cols; x++)
                 {
-                    byte upperThreshold = 0;
-                    byte lowerThreshold = 255;
-                    int Brightness = 0;
-                    int countBrightness = 0;
-                    List<(int, int)> lines = new List<(int, int)>();
-                    byte[] pixels = new byte[rowsCols == 0 ? mat.Cols : mat.Rows];
-                    int lightPixelCount = 0;
-                    for (int x = 0; (x < mat.Cols && rowsCols == 0) || (x < mat.Rows && rowsCols == 1); x++)
+                    lastPixel = pixel;
+                    pixel = (byte)((mat.At<Vec3b>(y, x)[0] + mat.At<Vec3b>(y, x)[1] + mat.At<Vec3b>(y, x)[2])/3);
+                    averageChangeBright = (1 * averageChangeBright + (pixel - lastPixel)) / 2;
+                    if (averageChangeBright >= 7)
+                        whiteFlag = true;
+                    if (averageChangeBright <= -0.5)
+                        whiteFlag = false;
+                    if (whiteFlag)
+                        for (byte c = 0; c < 3; c++)
+                        new_mat.At<Vec3b>(y, x)[c] = 255;
+                    /*
+                    Brightness += pixels[x];
+                    countBrightness++;
+                    if (pixels[x] > upperThreshold)
+                        upperThreshold = pixels[x];
+                    if (pixels[x] < lowerThreshold)
+                        lowerThreshold = pixels[x];
+                    if (pixels[x] >= upperThreshold)
+                        lightPixelCount++;*/
+                }
+
+
+                /*
+                double changeFactor = 0;
+                double averageBrightness = countBrightness > 0 ? Brightness / countBrightness : 0;
+                bool brightnessFlag = false, riseFlag = false;
+                int lineWidth = 0;
+                int blackPixelCount = 0;
+                int lastAverageBrightness = 0;
+                bool startFlag = false;
+                int xStart = 0;
+                if (averageBrightness > 1)
+                    for (int x = 1, cnt = 0; x < pixels.Length; x++, cnt++)
                     {
-                        pixels[x] = rowsCols == 0 ? mat.At<Vec3b>(y, x)[0] : mat.At<Vec3b>(x, y)[0];
-                        Brightness += pixels[x];
-                        countBrightness++;
-                        if (pixels[x] > upperThreshold)
-                            upperThreshold = pixels[x];
-                        if (pixels[x] < lowerThreshold)
-                            lowerThreshold = pixels[x];
-                        if (pixels[x] >= upperThreshold)
-                            lightPixelCount++;
-                    }
+                        var newChangeFactor = pixels[x] - pixels[x - 1];
+                        changeFactor = (changeFactor * cnt + newChangeFactor) / (cnt + 1);
 
-                    double changeFactor = 0;
-                    double averageBrightness = countBrightness > 0 ? Brightness / countBrightness : 0;
-                    bool brightnessFlag = false, riseFlag = false;
-                    int lineWidth = 0;
-                    int blackPixelCount = 0;
-                    int lastAverageBrightness = 0;
-                    bool startFlag = false;
-                    int xStart = 0;
-                    if (averageBrightness > 1)
-                        for (int x = 1, cnt = 0; x < pixels.Length; x++, cnt++)
+
+                        if (!startFlag && newChangeFactor - changeFactor > 30 && pixels[x] >= averageBrightness)
                         {
-                            var newChangeFactor = pixels[x] - pixels[x - 1];
-                            changeFactor = (changeFactor * cnt + newChangeFactor) / (cnt + 1);
+                            startFlag = true;
+                            xStart = x;
+                            cnt = 2;
+                            lineWidth = 0;
+                        }
+                        else if (startFlag && newChangeFactor - changeFactor < -30)
+                        {
+                            startFlag = false;
+                        }
+                        lastAverageBrightness = (pixels[x] + lastAverageBrightness * 3) / 4;
+                        if (startFlag)
+                        {
+                            lineWidth++;
+                        }
 
-                            if (!startFlag && newChangeFactor - changeFactor > 30 && pixels[x] >= averageBrightness)
+                        else if (blackPixelCount < 3 && lineWidth > 0)
+                        {
+                            blackPixelCount++;
+                        }
+                        else if (blackPixelCount >= 3)
+                        {
+                            lines.Add((x - lineWidth - 3, lineWidth));
+                            blackPixelCount = 0;
+                            lineWidth = 0;
+                        }
+                        if (lines.Count > 0)
+                        {
+                            int maxlength = (int)((lines.Max(t => t.Item2) + lines.Average(t => t.Item2)) / 2);
+                            if (maxlength < 5)
+                                maxlength = 5;
+                            if (maxlength > 20)
+                                maxlength = 20;
+                            foreach (var line in lines)
                             {
-                                startFlag = true;
-                                xStart = x;
-                                cnt = 2;
-                                lineWidth = 0;
-                            }
-                            else if (startFlag && newChangeFactor - changeFactor < -30)
-                            {
-                                startFlag = false;
-                            }
-                            lastAverageBrightness = (pixels[x] + lastAverageBrightness * 3) / 4;
-                            //  if ( (Math.Abs(pixels[x] - lastAverageBrightness) < 5 || pixels[x] > lastAverageBrightness)  && pixels[x] >= (upperThreshold * delta + averageBrightness) / (delta +1))
-                            if (startFlag)
-                            {
-                                lineWidth++;
-                            }
-
-                            else if (blackPixelCount < 3 && lineWidth > 0)
-                            {
-                                blackPixelCount++;
-                            }
-                            else if (blackPixelCount >= 3)
-                            {
-                                lines.Add((x - lineWidth - 3, lineWidth));
-                                blackPixelCount = 0;
-                                lineWidth = 0;
-                            }
-                            //else
-                            //new_mat.At<Vec3b>(y, x)[0] = 0;
-                            if (lines.Count > 0)
-                            {
-                                int maxlength = (int)((lines.Max(t => t.Item2) + lines.Average(t => t.Item2)) / 2);
-                                if (maxlength < 5)
-                                    maxlength = 5;
-                                if (maxlength > 20)
-                                    maxlength = 20;
-                                foreach (var line in lines)
+                                if (line.Item2 > maxlength)
+                                    continue;
+                                bool whiteFlag = false;
+                                for (int x1 = line.Item1; x1 < line.Item1 + line.Item2; x1++)
                                 {
-                                    if (line.Item2 > maxlength)
-                                        continue;
-                                    bool whiteFlag = false;
-                                    for (int x1 = line.Item1; x1 < line.Item1 + line.Item2; x1++)
-                                    {
-                                        for (int c = 0; c < 3; c++)
-                                            if (rowsCols == 0)
-                                                new_mat.At<Vec3b>(y, x1)[c] = 255;
-                                            else if (whiteFlag)
-                                            {
-                                                new_mat.At<Vec3b>(x1, y)[c] = 255;
-                                            }
-                                            else if (new_mat.At<Vec3b>(x, y)[0] > 0)
-                                                whiteFlag = true;
+                                    for (int c = 0; c < 3; c++)
+                                        if (rowsCols == 0)
+                                            new_mat.At<Vec3b>(y, x1)[c] = 255;
+                                        else if (whiteFlag)
+                                        {
+                                            new_mat.At<Vec3b>(x1, y)[c] = 255;
+                                        }
+                                        else if (new_mat.At<Vec3b>(x, y)[0] > 0)
+                                            whiteFlag = true;
 
-                                    }
                                 }
                             }
                         }
-                }
+                    }*/
+            }
             return new_mat;
         }
         static public Mat imageSimplification(Mat new_mat)
         {
-            new_mat = Resize(new_mat);
-            //new_mat = HideColor(new_mat);
-            //new_mat = ToGray(new_mat);
-            int skyHeight;
-            new_mat = DeleteSky(new_mat, out skyHeight, 100,4);
-            new_mat = Blur(new_mat);
-            new_mat = new_mat.BilateralFilter(75, 75, 75);
-            new_mat = ContrastBrightness(new_mat, GetBestAlpha(new_mat,skyHeight), GetBestBeta(new_mat, skyHeight), skyHeight);
-            //new_mat = new_mat.CvtColor(ColorConversionCodes.GRAY2RGB);
-            //new_mat = PickOutLines(new_mat);
-            //new_mat = OnlyWhite(new_mat, 50);
-            //new_mat = new_mat.Canny(40, 160);
-            //new_mat = DellNoise(new_mat, 15, 2, 16);
-            new_mat = ToBinary(new_mat);
+            new_mat = Resize(new_mat);       //зміна розміру зображення
+            //new_mat = HideColor(new_mat);  //закрашує усе, що не є відтінками сірого - чорним
+            //new_mat = ToGray(new_mat);     //перевод зображення до чорно білого
+            int skyHeight;      //координата кінця неба
+            new_mat = DeleteSky(new_mat, out skyHeight, 100,4); //видалення неба
+            new_mat = Blur(new_mat);         //розмивання
+            new_mat = new_mat.BilateralFilter(75, 75, 75); //ще одне розмивання
+            //new_mat = ContrastBrightness(new_mat, GetBestAlpha(new_mat,skyHeight) * 1.5f, GetBestBeta(new_mat, skyHeight), skyHeight); //зміна контрасту та яскравості
+            new_mat = PickOutLines(new_mat); //закраска усього чорним, окрім ліній
+            //new_mat = DellNoise(new_mat, 15, 2, 16); //видалення шумів
             return new_mat;
         }
 
@@ -382,202 +393,5 @@ namespace Road_Marking_Detect.Model
             }
             return new_mat;
         }
-        //static Mat HoughLines(Mat start_mat, Mat mat)
-        //{
-        //    Mat new_mat = mat.Clone();
-
-        //    var lines = Cv2.HoughLinesP(mat, 1, Math.PI / 180, 20, 5,2);
-        //    Console.WriteLine(lines.Length);
-        //    new_mat = new_mat.CvtColor(ColorConversionCodes.GRAY2RGB);
-        //    var rand = new Random();
-        //    list_lines = lines.ToList();
-
-        //    //var list_lines = AverageSlopeIntercept(new_mat, lines.ToList(), new List<LineSegmentPoint>());
-        //    /*for (int i = 0; i < list_lines.Count; i++)
-        //    {
-        //        var line = list_lines[i];
-        //        int rnd = rand.Next(0, 255);
-        //        new_mat.Line(line.P1, line.P2, new Scalar(rnd, rand.Next(0, 255), 255 - rnd), 2);
-        //    }*/
-        //    return new_mat;
-        //}
-
-        //static Random randm = new Random();
-        //static List<LineSegmentPoint> AverageSlopeIntercept(Mat mat, List<LineSegmentPoint> lines, List<LineSegmentPoint> lines_out, int error = 40, int i = 0)
-        //{
-        //    if (i > lines.Count - 1)
-        //        return lines;
-        //    LineSegmentPoint main_line = lines[i];
-        //    var lines_1 = new List<LineSegmentPoint>(lines);
-        //    var m_const = GetFunctionConst(main_line);
-        //    double
-        //        x_min = Min(main_line.P1.X, main_line.P2.X),
-        //        x_max = Max(main_line.P1.X, main_line.P2.X),
-        //        y_min = Min(main_line.P1.Y, main_line.P2.Y),
-        //        y_max = Max(main_line.P1.Y, main_line.P2.Y);
-
-        //    int rnd = randm.Next(0, 255);
-        //    int rnd_1 = randm.Next(0, 255);
-        //    foreach (var line in lines)
-        //    {
-        //        if (main_line == line)
-        //            continue;
-        //        Scalar color = new Scalar(rnd, randm.Next(0, 255), 255 - rnd);
-        //        var l_const = GetFunctionConst(line);
-        //        double delta_k = Math.Abs(l_const.Item1 - m_const.Item1);
-        //        double delta_b = Math.Abs(l_const.Item2 - m_const.Item2);
-        //        if (delta_k < 10 && delta_b < 3)
-        //        {
-        //            //m_const = l_const;
-        //            Console.WriteLine($"k{m_const.Item1}\t b{m_const.Item2}    ||   k{l_const.Item1}\t b{l_const.Item2}");
-        //            x_min = Min(Min(line.P1.X, line.P2.X), x_min);
-        //            x_max = Max(Max(line.P1.X, line.P2.X), x_max);
-        //            y_min = Min(Min(line.P1.Y, line.P2.Y), y_min);
-        //            y_max = Max(Max(line.P1.Y, line.P2.Y), y_max);
-        //            lines_1.Remove(line);
-        //            mat.Line(line.P1, line.P2, new Scalar(rnd, rnd_1, 255 - rnd), 2);
-        //            mat.Line(line.P1, line.P2, 2);
-        //        }
-        //    }
-        //    lines_out.Add(new LineSegmentPoint(new OpenCvSharp.Point(x_min, y_min), new OpenCvSharp.Point(x_max, y_max)));
-        //    return AverageSlopeIntercept(mat, lines_1, lines_out, error, i + 1);
-        //}
-        //static double Max(double a, double b)
-        //{
-        //    if (a > b)
-        //        return a;
-        //    else
-        //        return b;
-        //}
-        //static double Min(double a, double b)
-        //{
-        //    if (a < b)
-        //        return a;
-        //    else
-        //        return b;
-        //}
-        //public static (double, double) GetFunctionConst(LineSegmentPoint line) 
-        //{
-        //    double k = 0;
-        //    if ((line.P2.X - line.P1.X) != 0) 
-        //        k = (line.P2.Y - line.P1.Y)/(double)(line.P2.X - line.P1.X);
-        //    double b = (-line.P1.X * k) + line.P1.Y;
-        //    return (k, b);
-        //}
-        //static void DeleteLines(double k = 20)
-        //{
-        //    List<LineSegmentPoint> new_list_lines = new List<LineSegmentPoint>();
-        //    foreach (var line in list_lines)
-        //    {
-        //        var parameters = GetFunctionConst(line);
-        //        bool flag = false;
-        //        foreach (var line2 in list_lines)
-        //        {
-        //            var parameters2 = GetFunctionConst(line);
-        //            double a = (Math.Abs(parameters2.Item1 - parameters.Item1)), b = (Math.Abs(parameters2.Item2 - parameters.Item2)), 
-        //                a1 = (parameters2.Item1 + parameters.Item1) / k, b1 = a1 = (parameters2.Item1 + parameters.Item1) / k;
-        //            if ((Math.Abs(parameters2.Item1 - parameters.Item1) > (parameters2.Item1 + parameters.Item1) / k)/* && (Math.Abs(parameters2.Item2 - parameters.Item2) < (parameters2.Item2 + parameters.Item2) / k)*/)
-        //                flag = true;
-        //        }
-        //        if (flag)
-        //            new_list_lines.Add(line);
-        //    }
-        //    list_lines = new_list_lines;
-        //}
-        //    static public /*(LineSegmentPoint, LineSegmentPoint)*/ Mat GetRoadBorders(Mat mat)
-        //{
-        //    LineSegmentPoint left_line = new LineSegmentPoint(), right_line = new LineSegmentPoint() ;
-        //    var new_mat = mat.Clone();
-        //    List<(double, double)> left_borders = new List<(double, double)>();
-        //    List<(double, double)> right_borders = new List<(double, double)>();
-
-        //    List<(double, double, int)> constants = new List<(double, double, int)>();
-
-        //    if (list_lines.Count != 0)
-        //    {
-        //        foreach (var line in list_lines)
-        //        {
-        //            var parameters = GetFunctionConst(line);
-
-        //            bool flag = false;
-        //            int j = 0;
-        //            foreach (var parameter in constants)
-        //            {
-        //                if (parameter.Item2 > 373 && parameter.Item2 < 380 && parameters.Item2 > 373 && parameters.Item2 < 380)
-        //                {
-        //                    double a = (Math.Abs(parameter.Item1 - parameters.Item1)), b = (Math.Abs(parameter.Item2 - parameters.Item2)),
-        //                        a1 = (parameter.Item1 + parameters.Item1) / 30, b1 = (parameter.Item1 + parameters.Item1) / 30.0f;
-        //                }
-        //                if ((Math.Abs(parameter.Item1 - parameters.Item1) < (parameter.Item1 + parameters.Item1) / 30) && (Math.Abs(parameter.Item2 - parameters.Item2) < (parameter.Item2 + parameters.Item2) / 30))
-        //                {
-        //                    flag = true;
-        //                    break;
-        //                }
-        //                j++;
-        //            }
-        //            int lang = (int)Math.Sqrt(Math.Pow(line.P1.X + line.P2.X, 2) + Math.Pow(line.P1.Y + line.P2.Y, 2));
-        //            if (flag)
-        //            {
-        //                constants[j] = (constants[j].Item1, constants[j].Item2, constants[j].Item3 + lang);
-        //            }
-        //            else
-        //            {
-        //                constants.Add((parameters.Item1, parameters.Item2, lang));
-        //            }
-        //        }
-        //        int max_1 = 0, max_2, i_max_1 = 0, i_max_2 = 0;
-        //        int i = 0;
-        //        foreach (var parameter in constants)
-        //        {
-        //            if (parameter.Item3 > max_1)
-        //            {
-        //                max_2 = max_1;
-        //                i_max_2 = i_max_1;
-        //                max_1 = parameter.Item3;
-        //                i_max_1 = i;
-        //            }
-        //            i++;
-        //            if (parameter.Item3 > 1300)
-        //            {
-        //                var line = GetLineFromConst((constants[i_max_1].Item1, constants[i_max_1].Item2), 680);
-        //                new_mat.Line(line.P1, line.P2, new Scalar(255, 0, 0), 2);
-        //            }
-        //        }
-
-        //        left_line = GetLineFromConst((constants[i_max_1].Item1, constants[i_max_1].Item2), 680);
-
-        //        right_line = GetLineFromConst((constants[i_max_2].Item1, constants[i_max_2].Item2), 680);
-        //    }
-        //    //            return (left_line, right_line);
-        //    return new_mat;
-        //}
-        //static LineSegmentPoint GetLineFromConst((double, double) constant, int max_x)
-        //{
-        //    double
-        //        y1 = constant.Item1 * 0 + constant.Item2,
-        //        y2 = constant.Item1 * max_x + constant.Item2; // y = k*x + b
-        //        return new LineSegmentPoint(
-        //            new OpenCvSharp.Point(
-        //                    0,
-        //                    y1
-        //                ),
-        //            new OpenCvSharp.Point(
-        //                    max_x,
-        //                    y2
-        //                )
-        //            );
-        //}
-
-        //static (double, double) AverageConst(List<(double,double)> constants)
-        //{
-
-        //    double sum_k = 0, sum_b = 0;
-        //    foreach (var constant in constants)
-        //    {
-        //        sum_k += constant.Item1;
-        //        sum_b += constant.Item2;
-        //    }
-        //    return (sum_k / constants.Count, sum_b / constants.Count);
-        //}
     }
 }

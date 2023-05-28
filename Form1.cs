@@ -1,4 +1,5 @@
-﻿using Road_Marking_Detect.Model;
+﻿using OpenCvSharp;
+using Road_Marking_Detect.Model;
 using Road_Marking_Detect.ModelView;
 using System;
 using System.Collections.Generic;
@@ -40,6 +41,11 @@ namespace Road_Marking_Detect
         private void GetImage(object sender, EventArgs e)
         {
             pictureBox1.Image = openImage.GetImageForPictureBox(checkBox1.Checked, checkBox2.Checked);
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            CreateReport.Create(openImage.GetImageForPictureBox(),openImage.markingQualityDetection);
         }
     }
 }
